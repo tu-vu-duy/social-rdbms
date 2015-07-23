@@ -161,6 +161,14 @@ public class AsynMigrationTest extends BaseCoreTest {
     assertEquals(20, activityStorage.getActivityFeed(maryIdentity, 0, 100).size());
     assertEquals(20, activityStorage.getActivityFeed(johnIdentity, 0, 100).size());
     assertEquals(20, activityStorage.getActivityFeed(demoIdentity, 0, 100).size());
+    //
+    rdbmsMigrationManager.initMigrationSetting();
+    System.out.println(MigrationContext.isDone());
+    System.out.println(MigrationContext.isProfileDone());
+    System.out.println(MigrationContext.isConnectionDone());
+    System.out.println(MigrationContext.isActivityDone());
+    System.out.println(MigrationContext.isConnectionCleanupDone());
+    System.out.println(MigrationContext.isActivityCleanupDone());
   }
   
   private boolean getOrCreateSettingValue(String key) {

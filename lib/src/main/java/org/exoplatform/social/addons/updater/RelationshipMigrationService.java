@@ -1,10 +1,10 @@
 package org.exoplatform.social.addons.updater;
 
-import java.util.Collection;
 import java.util.Iterator;
 
 import javax.jcr.Node;
 import javax.jcr.NodeIterator;
+import javax.jcr.Session;
 
 import org.exoplatform.commons.api.event.EventManager;
 import org.exoplatform.commons.persistence.impl.EntityManagerService;
@@ -30,8 +30,12 @@ import org.exoplatform.social.core.storage.impl.IdentityStorageImpl;
 @NameTemplate({@Property(key = "service", value = "social"), @Property(key = "view", value = "migration-relationships") })
 public class RelationshipMigrationService extends AbstractMigrationService<Relationship> {
   public static final String EVENT_LISTENER_KEY = "SOC_RELATIONSHIP_MIGRATION";
+  private static final int LIMIT_REMOVED_THRESHOLD = 100;
+  private static final String RELATIONSHIP_NODE_NAME = "soc:relationship";
+  private static final String SENDER_NODE_NAME = "soc:sender";
+  private static final String RECEIVER_NODE_NAME = "soc:receiver";
+  private static final String REFERENCE_PROPERTY_NAME = "soc:reciprocal";
   private final ConnectionDAO connectionDAO;
-  private static final int LIMIT_REMOVED_THRESHOLD = 10;
   private final ProfileItemDAO profileItemDAO;
 
   public RelationshipMigrationService(InitParams initParams,
@@ -160,21 +164,22 @@ public class RelationshipMigrationService extends AbstractMigrationService<Relat
     int offset = 0;
     NodeIterator nodeIter  = getIdentityNodes(offset, LIMIT_THRESHOLD);
     Node node = null;
+    Session session = null;
     
     while (nodeIter.hasNext()) {
       node = nodeIter.nextNode();
-      LOG.info(String.format("|  \\ START::cleanup Relationship of user number: %s (%s user)", offset, node.getName()));
-      IdentityEntity identityEntity = _findById(IdentityEntity.class, node.getUUID());
-      offset++;
+      session = node.getSession();
       
-      Collection<RelationshipEntity> entities = identityEntity.getRelationship().getRelationships().values();
-      removeRelationshipEntity(entities);
-      // 
-      entities = identityEntity.getSender().getRelationships().values();
-      removeRelationshipEntity(entities);
+      LOG.info(String.format("|  \\ START::cleanup Relationship of user number: %s (%s user)", offset, node.getName()));
+      offset++;
+      NodeIterator it = node.getNode(RELATIONSHIP_NODE_NAME).getNodes();
+      removeRelationship(session, it);
       //
-      entities = identityEntity.getReceiver().getRelationships().values();
-      removeRelationshipEntity(entities);
+      it = node.getNode(SENDER_NODE_NAME).getNodes();
+      removeRelationship(session, it);
+      //
+      it = node.getNode(RECEIVER_NODE_NAME).getNodes();
+      removeRelationship(session, it);
       
       LOG.info(String.format("|  / END::cleanup (%s user) consumed time %s(ms)", node.getName(), System.currentTimeMillis() - timePerUser));
       
@@ -191,25 +196,31 @@ public class RelationshipMigrationService extends AbstractMigrationService<Relat
   }
   
   
-  private void removeRelationshipEntity(Collection<RelationshipEntity> entities) {
+  private void removeRelationship(Session session, NodeIterator it) throws Exception {
+    if (it.getSize() == 0) {
+      return;
+    }
     try {
       int offset = 0;
-      Iterator<RelationshipEntity> it = entities.iterator();
       while (it.hasNext()) {
-        RelationshipEntity relationshipEntity = it.next();
-        getSession().remove(relationshipEntity);
+        Node node = it.nextNode();
+        try {
+          Node node1 = node.getSession().getNodeByUUID(node.getProperty(REFERENCE_PROPERTY_NAME).getString());
+          node1.remove();
+        } catch (Exception e) {
+          LOG.warn("Failed to remove REFERENCE of node " + node.getName(), e);
+        }
+        node.remove();
         ++offset;
         if (offset % LIMIT_REMOVED_THRESHOLD == 0) {
           LOG.info(String.format("|     - BATCH CLEANUP::relationship number: %s", offset));
-          getSession().save();
+          session.save();
         }
       }
     } finally {
-      getSession().save();
+      session.save();
     }
   }
-
-  
 
   @Override
   @Managed

@@ -99,7 +99,7 @@ public class RDBMSMigrationManager implements Startable {
     this.migrationThread.start();
   }
   
-  private void initMigrationSetting() {
+  public void initMigrationSetting() {
     MigrationContext.setDone(getOrCreateSettingValue(MigrationContext.SOC_RDBMS_MIGRATION_STATUS_KEY));
     MigrationContext.setProfileDone(getOrCreateSettingValue(MigrationContext.SOC_RDBMS_PROFILE_MIGRATION_KEY));
     //

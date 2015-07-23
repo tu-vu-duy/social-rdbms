@@ -5,13 +5,19 @@ import java.util.List;
 import java.util.Map;
 
 import javax.jcr.NodeIterator;
+import javax.jcr.Session;
+import javax.jcr.query.Query;
+import javax.jcr.query.QueryManager;
 import javax.persistence.EntityManager;
 
 import org.exoplatform.commons.api.event.EventManager;
 import org.exoplatform.commons.persistence.impl.EntityManagerService;
+import org.exoplatform.commons.utils.CommonsUtils;
 import org.exoplatform.container.PortalContainer;
 import org.exoplatform.container.component.RequestLifeCycle;
 import org.exoplatform.container.xml.InitParams;
+import org.exoplatform.services.jcr.ext.common.SessionProvider;
+import org.exoplatform.services.jcr.impl.core.query.QueryImpl;
 import org.exoplatform.services.listener.Event;
 import org.exoplatform.services.listener.Listener;
 import org.exoplatform.services.log.ExoLogger;
@@ -195,6 +201,34 @@ public abstract class AbstractMigrationService<T>  extends AbstractStorage {
     }
     
     return nodes(spaceIdentityQuery);
+  }
+
+  @Override
+  protected NodeIterator nodes(String statement, long offset, long limit) {
+    //
+    if (statement == null) return null;
+    //
+    try {
+      QueryManager queryMgr = getJCRSession().getWorkspace().getQueryManager();
+      Query query = queryMgr.createQuery(statement, Query.SQL);
+      if (query instanceof QueryImpl) {
+        QueryImpl impl = (QueryImpl) query;
+        //
+        impl.setOffset(offset);
+        impl.setLimit(limit);
+        
+        return impl.execute().getNodes();
+      }
+      //
+      return query.execute().getNodes();
+    } catch (Exception ex) {
+      return null;
+    }
+  }
+
+  private Session getJCRSession() throws Exception {
+    SessionProvider sessionProvider = CommonsUtils.getSystemSessionProvider();
+    return sessionProvider.getSession(lifeCycle.getWorkspaceName(), CommonsUtils.getRepository());
   }
 
   protected int getInteger(InitParams params, String key, int defaultValue) {
